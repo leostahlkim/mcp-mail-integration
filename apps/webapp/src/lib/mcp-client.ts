@@ -2,7 +2,7 @@ const MCP_SERVER_URL = process.env.NEXT_PUBLIC_MCP_SERVER_URL || 'http://localho
 
 let sessionId: string | null = null;
 
-interface McpToolResult<T = unknown> {
+interface McpToolResult {
   content: Array<{ type: string; text: string }>;
 }
 
@@ -48,7 +48,7 @@ export async function callMcpTool<T>(
     throw new Error(data.error.message || 'MCP tool error');
   }
 
-  const result = data.result as McpToolResult<T>;
+  const result = data.result as McpToolResult;
   const textContent = result.content.find(c => c.type === 'text');
 
   if (!textContent) {
