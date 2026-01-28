@@ -16,7 +16,7 @@ export const authTools = {
     inputSchema: AuthInitiateInputSchema,
     handler: async (input: z.infer<typeof AuthInitiateInputSchema>): Promise<AuthInitiateOutput> => {
       const client = getProviderClient(input.provider);
-      const { authUrl, state } = client.generateAuthUrl();
+      const { authUrl, state } = await client.generateAuthUrl();
       return { authUrl, state };
     },
   },

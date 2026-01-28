@@ -8,6 +8,7 @@ import type {
   EmailAddress,
 } from '@mcp-mail/shared';
 import { getTokenStorage } from '../../storage/token.storage.js';
+import { getOAuthRedirectUri } from '../../utils/tunnel.js';
 
 const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/gmail.readonly',
@@ -15,19 +16,20 @@ const GMAIL_SCOPES = [
   'https://www.googleapis.com/auth/userinfo.email',
 ];
 
-function getOAuth2Client() {
+function getOAuth2Client(redirectUri?: string) {
   return new google.auth.OAuth2(
     process.env.GMAIL_CLIENT_ID,
     process.env.GMAIL_CLIENT_SECRET,
-    process.env.GMAIL_REDIRECT_URI
+    redirectUri || process.env.GMAIL_REDIRECT_URI
   );
 }
 
 export class GmailClient {
   private provider: EmailProvider = 'gmail';
 
-  generateAuthUrl(): { authUrl: string; state: string } {
-    const oauth2Client = getOAuth2Client();
+  async generateAuthUrl(): Promise<{ authUrl: string; state: string }> {
+    const redirectUri = await getOAuthRedirectUri(this.provider);
+    const oauth2Client = getOAuth2Client(redirectUri);
     const state = crypto.randomBytes(32).toString('hex');
 
     const authUrl = oauth2Client.generateAuthUrl({

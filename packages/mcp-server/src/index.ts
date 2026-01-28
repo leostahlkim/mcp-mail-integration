@@ -2,15 +2,36 @@ import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/
 import express from 'express';
 import crypto from 'node:crypto';
 import { createMcpServer } from './server.js';
+import { getNgrokUrl } from './utils/tunnel.js';
 
 const PORT = parseInt(process.env.MCP_SERVER_PORT || '3001', 10);
 
 async function main() {
   const app = express();
 
+  // Detect ngrok tunnel on startup
+  const ngrokUrl = await getNgrokUrl();
+  if (ngrokUrl) {
+    console.log(`ngrok tunnel detected: ${ngrokUrl}`);
+    console.log('OAuth redirects will use ngrok URL');
+  } else {
+    console.log('No ngrok tunnel detected, using localhost for OAuth redirects');
+  }
+
+  // Build allowed origins list
+  const allowedOrigins = ['http://localhost:3000'];
+  if (ngrokUrl) {
+    allowedOrigins.push(ngrokUrl);
+  }
+
   // CORS for web app - must come before routes
   app.use((req, res, next) => {
-    res.header('Access-Control-Allow-Origin', 'http://localhost:3000');
+    const origin = req.headers.origin;
+    if (origin && allowedOrigins.includes(origin)) {
+      res.header('Access-Control-Allow-Origin', origin);
+    } else {
+      res.header('Access-Control-Allow-Origin', allowedOrigins[0]);
+    }
     res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
     res.header('Access-Control-Allow-Headers', 'Content-Type, mcp-session-id');
     res.header('Access-Control-Expose-Headers', 'mcp-session-id');

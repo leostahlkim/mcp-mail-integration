@@ -7,6 +7,7 @@ import type {
   EmailAddress,
 } from '@mcp-mail/shared';
 import { getTokenStorage } from '../../storage/token.storage.js';
+import { getOAuthRedirectUri } from '../../utils/tunnel.js';
 
 const YAHOO_AUTH_URL = 'https://api.login.yahoo.com/oauth2/request_auth';
 const YAHOO_TOKEN_URL = 'https://api.login.yahoo.com/oauth2/get_token';
@@ -17,12 +18,13 @@ const YAHOO_SCOPES = ['mail-r', 'mail-w'];
 export class YahooClient {
   private provider: EmailProvider = 'yahoo';
 
-  generateAuthUrl(): { authUrl: string; state: string } {
+  async generateAuthUrl(): Promise<{ authUrl: string; state: string }> {
     const state = crypto.randomBytes(32).toString('hex');
+    const redirectUri = await getOAuthRedirectUri(this.provider);
 
     const params = new URLSearchParams({
       client_id: process.env.YAHOO_CLIENT_ID || '',
-      redirect_uri: process.env.YAHOO_REDIRECT_URI || '',
+      redirect_uri: redirectUri,
       response_type: 'code',
       scope: YAHOO_SCOPES.join(' '),
       state,
@@ -39,6 +41,8 @@ export class YahooClient {
       `${process.env.YAHOO_CLIENT_ID}:${process.env.YAHOO_CLIENT_SECRET}`
     ).toString('base64');
 
+    const redirectUri = await getOAuthRedirectUri(this.provider);
+
     const response = await fetch(YAHOO_TOKEN_URL, {
       method: 'POST',
       headers: {
@@ -48,7 +52,7 @@ export class YahooClient {
       body: new URLSearchParams({
         grant_type: 'authorization_code',
         code,
-        redirect_uri: process.env.YAHOO_REDIRECT_URI || '',
+        redirect_uri: redirectUri,
       }),
     });
 
