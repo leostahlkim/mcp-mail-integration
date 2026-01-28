@@ -76,8 +76,8 @@ async function main() {
     // Set session ID header
     res.setHeader('mcp-session-id', sessionId);
 
-    // Handle the request
-    await transport.handleRequest(req, res);
+    // Handle the request (pass req.body since express.json() already parsed it)
+    await transport.handleRequest(req, res, req.body);
   });
 
   // Health check
