@@ -123,3 +123,7 @@ When working on specific areas, check these files:
 | Topic | File |
 |-------|------|
 | Architectural patterns & conventions | `.claude/docs/architectural_patterns.md` |
+
+## Additional Instructions ##
+
+When working on a new feature or bug fix, make a new branch and commit the changes.
