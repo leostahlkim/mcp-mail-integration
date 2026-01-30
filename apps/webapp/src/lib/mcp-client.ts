@@ -10,6 +10,13 @@ function resetSession() {
   initializePromise = null;
 }
 
+class SessionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SessionError';
+  }
+}
+
 interface McpToolResult {
   content: Array<{ type: string; text: string }>;
 }
@@ -51,7 +58,7 @@ async function initializeSession(): Promise<void> {
   });
 
   if (!initResponse.ok) {
-    throw new Error(`MCP initialize failed: ${initResponse.statusText}`);
+    throw new SessionError(`MCP initialize failed: ${initResponse.statusText}`);
   }
 
   // Store session ID from initialize response
@@ -84,7 +91,7 @@ async function initializeSession(): Promise<void> {
   });
 
   if (!notifyResponse.ok) {
-    throw new Error(`MCP initialized notification failed: ${notifyResponse.status}`);
+    throw new SessionError(`MCP initialized notification failed: ${notifyResponse.status}`);
   }
 
   isInitialized = true;
@@ -146,6 +153,10 @@ export async function callMcpTool<T>(
       }
 
       if (!response.ok) {
+        // Only treat 400/404 as session errors that warrant a retry
+        if (response.status === 400 || response.status === 404) {
+          throw new SessionError(`MCP session error: ${response.status}`);
+        }
         throw new Error(`MCP request failed: ${response.status}`);
       }
 
@@ -164,8 +175,8 @@ export async function callMcpTool<T>(
 
       return JSON.parse(textContent.text) as T;
     } catch (error) {
-      if (attempt < maxRetries) {
-        // Reset session state and retry once
+      // Only retry on session errors, not all errors
+      if (attempt < maxRetries && error instanceof SessionError) {
         resetSession();
         continue;
       }

@@ -86,9 +86,9 @@ export function clearTunnelCache(): void {
  * Uses ngrok URL if available, falls back to localhost
  */
 export async function getOAuthRedirectUri(provider: EmailProvider): Promise<string> {
-  if (provider === "gmail") {
-    console.log("Using localhost for Gmail OAuth redirect URI");
-    return `http://localhost:3000/auth/gmail/callback`;
+  // Gmail requires localhost (Google Cloud Console configured with localhost redirect URI)
+  if (provider === 'gmail') {
+    return 'http://localhost:3000/auth/gmail/callback';
   }
 
   const ngrokUrl = await getNgrokUrl();
