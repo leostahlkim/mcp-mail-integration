@@ -45,7 +45,8 @@ export class GmailClient {
   }
 
   async exchangeCode(code: string): Promise<{ email: string; token: OAuthToken }> {
-    const oauth2Client = getOAuth2Client();
+    const redirectUri = await getOAuthRedirectUri(this.provider);
+    const oauth2Client = getOAuth2Client(redirectUri);
     const { tokens } = await oauth2Client.getToken(code);
 
     if (!tokens.access_token) {

@@ -4,6 +4,19 @@ let sessionId: string | null = null;
 let isInitialized = false;
 let initializePromise: Promise<void> | null = null;
 
+function resetSession() {
+  sessionId = null;
+  isInitialized = false;
+  initializePromise = null;
+}
+
+class SessionError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'SessionError';
+  }
+}
+
 interface McpToolResult {
   content: Array<{ type: string; text: string }>;
 }
@@ -45,7 +58,7 @@ async function initializeSession(): Promise<void> {
   });
 
   if (!initResponse.ok) {
-    throw new Error(`MCP initialize failed: ${initResponse.statusText}`);
+    throw new SessionError(`MCP initialize failed: ${initResponse.statusText}`);
   }
 
   // Store session ID from initialize response
@@ -68,7 +81,7 @@ async function initializeSession(): Promise<void> {
     headers['mcp-session-id'] = sessionId;
   }
 
-  await fetch(`${MCP_SERVER_URL}/mcp`, {
+  const notifyResponse = await fetch(`${MCP_SERVER_URL}/mcp`, {
     method: 'POST',
     headers,
     body: JSON.stringify({
@@ -76,6 +89,10 @@ async function initializeSession(): Promise<void> {
       method: 'notifications/initialized',
     }),
   });
+
+  if (!notifyResponse.ok) {
+    throw new SessionError(`MCP initialized notification failed: ${notifyResponse.status}`);
+  }
 
   isInitialized = true;
 }
@@ -99,56 +116,75 @@ export async function callMcpTool<T>(
   toolName: string,
   args: Record<string, unknown>
 ): Promise<T> {
-  // Ensure MCP session is initialized before making tool calls
-  await ensureInitialized();
+  const maxRetries = 1;
 
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'Accept': 'application/json, text/event-stream',
-  };
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      // Ensure MCP session is initialized before making tool calls
+      await ensureInitialized();
 
-  if (sessionId) {
-    headers['mcp-session-id'] = sessionId;
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json, text/event-stream',
+      };
+
+      if (sessionId) {
+        headers['mcp-session-id'] = sessionId;
+      }
+
+      const response = await fetch(`${MCP_SERVER_URL}/mcp`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          jsonrpc: '2.0',
+          id: Date.now(),
+          method: 'tools/call',
+          params: {
+            name: toolName,
+            arguments: args,
+          },
+        }),
+      });
+
+      // Store session ID for subsequent requests
+      const newSessionId = response.headers.get('mcp-session-id');
+      if (newSessionId) {
+        sessionId = newSessionId;
+      }
+
+      if (!response.ok) {
+        // Only treat 400/404 as session errors that warrant a retry
+        if (response.status === 400 || response.status === 404) {
+          throw new SessionError(`MCP session error: ${response.status}`);
+        }
+        throw new Error(`MCP request failed: ${response.status}`);
+      }
+
+      const data = await parseSSEResponse(response) as { error?: { message: string }; result: McpToolResult };
+
+      if (data.error) {
+        throw new Error(data.error.message || 'MCP tool error');
+      }
+
+      const result = data.result;
+      const textContent = result.content.find(c => c.type === 'text');
+
+      if (!textContent) {
+        throw new Error('No text content in response');
+      }
+
+      return JSON.parse(textContent.text) as T;
+    } catch (error) {
+      // Only retry on session errors, not all errors
+      if (attempt < maxRetries && error instanceof SessionError) {
+        resetSession();
+        continue;
+      }
+      throw error;
+    }
   }
 
-  const response = await fetch(`${MCP_SERVER_URL}/mcp`, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      id: Date.now(),
-      method: 'tools/call',
-      params: {
-        name: toolName,
-        arguments: args,
-      },
-    }),
-  });
-
-  // Store session ID for subsequent requests
-  const newSessionId = response.headers.get('mcp-session-id');
-  if (newSessionId) {
-    sessionId = newSessionId;
-  }
-
-  if (!response.ok) {
-    throw new Error(`MCP request failed: ${response.statusText}`);
-  }
-
-  const data = await parseSSEResponse(response) as { error?: { message: string }; result: McpToolResult };
-
-  if (data.error) {
-    throw new Error(data.error.message || 'MCP tool error');
-  }
-
-  const result = data.result;
-  const textContent = result.content.find(c => c.type === 'text');
-
-  if (!textContent) {
-    throw new Error('No text content in response');
-  }
-
-  return JSON.parse(textContent.text) as T;
+  throw new Error('Unreachable');
 }
 
 // Type-safe tool wrappers

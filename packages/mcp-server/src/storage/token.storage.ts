@@ -146,11 +146,13 @@ export class TokenStorage {
   }
 
   saveOAuthState(state: string, provider: EmailProvider): void {
+    console.log('[saveOAuthState] Saving state:', state, 'for provider:', provider);
     const stmt = this.db.prepare(`
       INSERT INTO oauth_states (state, provider, created_at)
       VALUES (?, ?, ?)
     `);
     stmt.run(state, provider, Date.now());
+    console.log('[saveOAuthState] State saved successfully');
   }
 
   verifyAndConsumeState(state: string): EmailProvider | null {
