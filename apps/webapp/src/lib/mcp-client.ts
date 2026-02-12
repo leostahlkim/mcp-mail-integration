@@ -76,7 +76,7 @@ async function initializeSession(): Promise<void> {
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'Accept': 'application/json, text/event-stream',
-  };
+  }; 
   if (sessionId) {
     headers['mcp-session-id'] = sessionId;
   }
